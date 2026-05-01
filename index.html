@@ -149,12 +149,13 @@
   .title-sub {
     margin-top: 0.85rem;
     font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
     letter-spacing: 0.34em;
     color: #fff;
     font-weight: 400;
     text-transform: uppercase;
     opacity: 0;
+    cursor: default;
     text-shadow:
       0 1px 4px rgba(0,0,0,0.75),
       0 2px 12px rgba(0,0,0,0.65),
@@ -168,6 +169,22 @@
   @keyframes title-sub-in {
     0%   { opacity: 0; letter-spacing: 0.18em; transform: translateY(6px); }
     100% { opacity: 1; letter-spacing: 0.34em; transform: translateY(0); }
+  }
+  /* Per-letter fluid wave on hover — letters are split into spans by JS. */
+  .title-sub .letter {
+    display: inline-block;
+    will-change: transform;
+    transition: transform 0.7s cubic-bezier(0.37, 0, 0.63, 1);
+    transition-delay: calc(var(--i) * 0.04s);
+  }
+  .title-sub:hover .letter {
+    animation: letter-wave 2.2s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+    animation-delay: calc(var(--i) * 0.08s);
+    transition: none;
+  }
+  @keyframes letter-wave {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-8px); }
   }
   @keyframes title-sub-shimmer {
     0%, 100% {
@@ -832,6 +849,11 @@
   totalEl.textContent = String(stanzas.length).padStart(2, '0');
 
   // Title screen
+  const SUB_TEXT = 'by xiaoman';
+  const subHTML = [...SUB_TEXT].map((c, i) =>
+    `<span class="letter" style="--i:${i}">${c === ' ' ? '&nbsp;' : c}</span>`
+  ).join('');
+
   const titleEl = document.createElement('article');
   titleEl.className = 'screen screen-title';
   titleEl.innerHTML = `
@@ -839,7 +861,7 @@
     <div class="bg-tint"></div>
     <div class="fx fx-title">${builders['fx-title']()}</div>
     <div class="text">
-      <div class="title-sub">by xiaoman</div>
+      <div class="title-sub" aria-label="${SUB_TEXT}">${subHTML}</div>
       <button class="action-btn" data-action="begin">Begin</button>
     </div>
   `;
