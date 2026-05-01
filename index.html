@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Family Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #1a2533;
+    --ink-soft: #4d6173;
+    --accent: #284a64;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    color: var(--ink);
+    background: linear-gradient(180deg, #f4faff 0%, #e3f0fa 55%, #cfe4f3 100%);
+    min-height: 100vh;
+    position: relative;
+  }
+
+  /* ─── flying bird overlay ───────────────── */
+  .bird-layer { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+  .bird {
+    position: absolute;
+    width: 46px; height: 46px;
+    top: 22%; left: -10%;
+    opacity: 0;
+    transition: transform 2.4s cubic-bezier(0.45,0.05,0.25,1),
+                top 2.4s cubic-bezier(0.45,0.05,0.25,1),
+                left 2.4s cubic-bezier(0.45,0.05,0.25,1),
+                opacity 1.2s ease;
+    will-change: transform, top, left;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.18));
+  }
+  .bird.visible { opacity: 0.78; }
+  .bird svg { width: 100%; height: 100%; overflow: visible; }
+  .bird .wing { transform-origin: 32px 30px; animation: flap 0.55s ease-in-out infinite; }
+  @keyframes flap {
+    0%,100% { transform: rotate(-18deg) scaleY(1); }
+    50%     { transform: rotate(22deg) scaleY(0.85); }
+  }
+
+  /* ─── stage & screens ───────────────────── */
+  .stage { position: relative; z-index: 2; height: 100vh; }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(1.02);
+    transition: opacity 1.6s ease, transform 2.4s ease;
+    pointer-events: none;
+  }
+  .screen.active {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+
+  .bg {
+    position: absolute; inset: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+    transform: scale(1.04);
+    transition: transform 8s ease;
+  }
+  .screen.active .bg { transform: scale(1); }
+
+  /* readability layer — strong radial halo behind the text */
+  .bg-tint {
+    position: absolute; inset: 0;
+    z-index: 1;
+    background:
+      radial-gradient(ellipse 55% 42% at center,
+        rgba(255,255,255,0.78) 0%,
+        rgba(255,255,255,0.55) 45%,
+        rgba(255,255,255,0.20) 80%,
+        rgba(255,255,255,0.10) 100%);
+  }
+
+  .fx {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    overflow: hidden;
+  }
+  .fx > * { animation-play-state: paused; }
+  .screen.active .fx > * { animation-play-state: running; }
+
+  .text {
+    position: relative;
+    z-index: 3;
+    max-width: 660px;
+    width: calc(100% - 3rem);
+    padding: 0 1.5rem;
+    text-align: center;
+  }
+  .text p {
+    font-size: clamp(1.2rem, 1.95vw, 1.55rem);
+    font-weight: 500;
+    line-height: 2.0;
+    letter-spacing: 0.005em;
+    color: var(--ink);
+    text-shadow:
+      0 0 6px rgba(255,255,255,1),
+      0 0 14px rgba(255,255,255,0.95),
+      0 0 28px rgba(255,255,255,0.85),
+      0 1px 2px rgba(255,255,255,1);
+  }
+  .text .line {
+    display: block;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+  }
+  .screen.active .text .line { opacity: 1; transform: translateY(0); }
+  .screen.active .text .line:nth-child(1) { transition-delay: 0.3s; }
+  .screen.active .text .line:nth-child(2) { transition-delay: 0.6s; }
+  .screen.active .text .line:nth-child(3) { transition-delay: 0.9s; }
+  .screen.active .text .line:nth-child(4) { transition-delay: 1.2s; }
+
+  /* ─── title screen ──────────────────────── */
+  .screen-title .text { padding: 0 1.5rem; }
+  .big-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    line-height: 1.1;
+    text-shadow: 0 0 24px rgba(255,255,255,0.95);
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 1.4s ease 0.4s, transform 1.4s ease 0.4s;
+  }
+  .screen-title.active .big-title { opacity: 1; transform: translateY(0); }
+  .title-sub {
+    margin-top: 0.85rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.74rem;
+    letter-spacing: 0.36em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 1.4s ease 1.0s;
+    text-shadow: 0 0 12px rgba(255,255,255,0.95);
+  }
+  .screen-title.active .title-sub { opacity: 1; }
+
+  /* ─── finish screen ─────────────────────── */
+  .fin-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    opacity: 0;
+    transition: opacity 1.6s ease 0.4s;
+  }
+  .screen-finish.active .fin-mark { opacity: 1; }
+  .fin-rule {
+    display: block;
+    width: 22px;
+    height: 1px;
+    background: var(--accent);
+    opacity: 0.5;
+    transform-origin: center;
+    transform: scaleX(0);
+    transition: transform 1.6s ease 0.7s;
+  }
+  .screen-finish.active .fin-rule { transform: scaleX(1); }
+  .fin-word {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    font-style: italic;
+    font-size: clamp(1.1rem, 2vw, 1.4rem);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: var(--accent);
+    text-shadow:
+      0 0 8px rgba(255,255,255,1),
+      0 0 24px rgba(255,255,255,0.92);
+  }
+
+  /* action buttons (begin / restart) */
+  .action-btn {
+    display: inline-block;
+    margin-top: 2rem;
+    padding: 0.85rem 2.2rem;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(40,74,100,0.28);
+    color: var(--accent);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 999px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .screen-title.active .action-btn,
+  .screen-finish.active .action-btn { opacity: 1; transform: translateY(0); transition-delay: 1.4s; }
+  .action-btn:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  /* ─── controls ──────────────────────────── */
+  .controls {
+    position: fixed;
+    bottom: 2.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    z-index: 6;
+    font-family: 'Inter', sans-serif;
+  }
+  .nav-btn {
+    background: rgba(255,255,255,0.78);
+    border: 1px solid rgba(40,74,100,0.2);
+    color: var(--accent);
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: background 0.3s ease, transform 0.2s ease, opacity 0.3s ease;
+  }
+  .nav-btn:hover:not(:disabled) {
+    background: rgba(255,255,255,0.98);
+    transform: translateY(-1px);
+  }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .nav-btn svg { width: 14px; height: 14px; }
+
+  .progress { display: flex; align-items: center; gap: 0.55rem; }
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: rgba(40,74,100,0.45);
+    cursor: pointer;
+    transition: background 0.4s ease, width 0.4s ease;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+  }
+  .dot.active { background: var(--accent); width: 22px; border-radius: 4px; }
+  .dot.done { background: rgba(40,74,100,0.7); }
+  .dot:hover { background: rgba(40,74,100,0.85); }
+
+  .counter {
+    position: fixed;
+    bottom: 2.4rem; right: 2.4rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.28em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    z-index: 6;
+    user-select: none;
+    text-shadow: 0 0 10px rgba(255,255,255,0.95);
+    opacity: 1;
+    transition: opacity 0.6s ease;
+  }
+  .counter.hidden { opacity: 0; pointer-events: none; }
+  .counter .current { color: var(--accent); font-weight: 600; }
+
+  .hint {
+    position: fixed;
+    bottom: 2.4rem; left: 2.4rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    z-index: 6;
+    opacity: 0.85;
+    user-select: none;
+    text-shadow: 0 0 10px rgba(255,255,255,0.95);
+  }
+
+  /* ─── per-stanza FX ─────────────────────── */
+
+  /* fx-1 / fx-title: drifting motes */
+  .mote {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,220,0.95), rgba(255,255,220,0));
+    left: var(--x); top: 100%;
+    animation: mote-rise var(--dur,10s) linear infinite;
+    animation-delay: var(--d,0s);
+  }
+  @keyframes mote-rise {
+    0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
+    15%  { opacity: 1; }
+    50%  { transform: translate(20px, -55vh) scale(1); }
+    85%  { opacity: 1; }
+    100% { transform: translate(-10px, -110vh) scale(0.7); opacity: 0; }
+  }
+
+  /* fx-2: tempest */
+  .streak {
+    position: absolute;
+    height: 1.5px; width: 240px;
+    top: var(--y); left: -260px;
+    background: linear-gradient(90deg, rgba(70,90,110,0) 0%, rgba(70,90,110,0.4) 50%, rgba(70,90,110,0) 100%);
+    animation: gust var(--dur,1.6s) linear infinite;
+    animation-delay: var(--d,0s);
+  }
+  @keyframes gust {
+    from { transform: translateX(0); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    to   { transform: translateX(120vw); opacity: 0; }
+  }
+  .debris {
+    position: absolute;
+    width: 10px; height: 6px;
+    top: var(--y); left: -20px;
+    background: rgba(80,60,40,0.6);
+    border-radius: 40% 60% 50% 50%;
+    animation: blow var(--dur,2.4s) linear infinite;
+    animation-delay: var(--d,0s);
+  }
+  @keyframes blow {
+    0%   { transform: translate(0, 0) rotate(0); opacity: 0; }
+    10%  { opacity: 0.9; }
+    100% { transform: translate(110vw, -40px) rotate(720deg); opacity: 0; }
+  }
+
+  /* fx-3: distant birds */
+  .farbird {
+    position: absolute;
+    top: var(--y); left: -60px;
+    width: 26px;
+    opacity: 0.7;
+    animation: glide var(--dur,16s) linear infinite;
+    animation-delay: var(--d,0s);
+  }
+  .farbird svg { width: 100%; display: block; }
+  @keyframes glide {
+    0%   { transform: translateX(0) translateY(0); }
+    50%  { transform: translateX(50vw) translateY(-12px); }
+    100% { transform: translateX(110vw) translateY(0); }
+  }
+
+  /* fx-4: falling autumn leaves */
+  .leaf {
+    position: absolute;
+    width: 14px; height: 14px;
+    top: -30px; left: var(--x);
+    background: var(--c, #c87a3b);
+    clip-path: polygon(50% 0%, 80% 25%, 95% 60%, 60% 100%, 40% 100%, 5% 60%, 20% 25%);
+    animation: fall var(--dur,8s) linear infinite;
+    animation-delay: var(--d,0s);
+    opacity: 0.85;
+  }
+  @keyframes fall {
+    0%   { transform: translate(0,0) rotate(0); opacity: 0; }
+    10%  { opacity: 0.9; }
+    50%  { transform: translate(40px, 50vh) rotate(220deg); }
+    90%  { opacity: 0.9; }
+    100% { transform: translate(-30px, 110vh) rotate(540deg); opacity: 0; }
+  }
+
+  /* fx-5: sea shimmer */
+  .sparkle {
+    position: absolute;
+    width: 5px; height: 5px;
+    top: var(--y); left: var(--x);
+    background: radial-gradient(circle, rgba(255,255,255,1), rgba(255,255,255,0));
+    animation: twinkle var(--dur,2.4s) ease-in-out infinite;
+    animation-delay: var(--d,0s);
+  }
+  @keyframes twinkle {
+    0%,100% { opacity: 0; transform: scale(0.4); }
+    50%     { opacity: 1; transform: scale(1.3); }
+  }
+
+  /* fx-6: snowflakes */
+  .snow {
+    position: absolute;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    top: -20px; left: var(--x);
+    background: rgba(255,255,255,0.95);
+    box-shadow: 0 0 6px rgba(255,255,255,0.7);
+    animation: snowfall var(--dur,9s) linear infinite;
+    animation-delay: var(--d,0s);
+  }
+  @keyframes snowfall {
+    0%   { transform: translate(0,0); opacity: 0; }
+    10%  { opacity: 0.9; }
+    50%  { transform: translate(30px, 50vh); }
+    100% { transform: translate(-20px, 110vh); opacity: 0; }
+  }
+
+  /* fx-7: whisper notes + halo */
+  .halo {
+    position: absolute;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    top: 38%; left: 50%;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(circle, rgba(255,240,180,0.45) 0%, rgba(255,240,180,0) 70%);
+    animation: pulse 4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { transform: translate(-50%,-50%) scale(0.85); opacity: 0.6; }
+    50%     { transform: translate(-50%,-50%) scale(1.15); opacity: 1; }
+  }
+  .note {
+    position: absolute;
+    top: var(--y); left: var(--x);
+    font-size: 22px;
+    color: rgba(40,74,100,0.85);
+    font-family: 'Cormorant Garamond', serif;
+    animation: note-rise 5s ease-out infinite;
+    animation-delay: var(--d,0s);
+    opacity: 0;
+  }
+  @keyframes note-rise {
+    0%   { transform: translateY(0) rotate(-6deg) scale(0.7); opacity: 0; }
+    20%  { opacity: 1; }
+    100% { transform: translateY(-140px) rotate(8deg) scale(1.1); opacity: 0; }
+  }
+
+  /* fx-8: light rays */
+  .ray {
+    position: absolute;
+    top: -10%; left: var(--x);
+    width: 80px; height: 130%;
+    background: linear-gradient(180deg, rgba(255,240,200,0.4), rgba(255,240,200,0));
+    transform: rotate(var(--rot,8deg));
+    transform-origin: top center;
+    filter: blur(8px);
+    animation: ray-shift 7s ease-in-out infinite;
+    animation-delay: var(--d,0s);
+  }
+  @keyframes ray-shift {
+    0%,100% { opacity: 0.4; transform: rotate(var(--rot,8deg)) translateX(0); }
+    50%     { opacity: 0.85; transform: rotate(var(--rot,8deg)) translateX(20px); }
+  }
+
+  /* fx-9 / fx-finish: rising birds + golden dust */
+  .rise-bird {
+    position: absolute;
+    bottom: -40px; left: var(--x);
+    width: 32px;
+    opacity: 0;
+    animation: rise 7s ease-in infinite;
+    animation-delay: var(--d,0s);
+  }
+  .rise-bird svg { width: 100%; display: block; }
+  .rise-bird .wing { transform-origin: 32px 30px; animation: flap 0.55s ease-in-out infinite; }
+  @keyframes rise {
+    0%   { transform: translate(0,0) scale(1); opacity: 0; }
+    15%  { opacity: 0.85; }
+    100% { transform: translate(60px, -110vh) scale(0.5); opacity: 0; }
+  }
+  .gold {
+    position: absolute;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    bottom: 0; left: var(--x);
+    background: radial-gradient(circle, rgba(255,210,120,1), rgba(255,210,120,0));
+    animation: gold-rise var(--dur,9s) linear infinite;
+    animation-delay: var(--d,0s);
+  }
+  @keyframes gold-rise {
+    0%   { transform: translate(0,0) scale(0.6); opacity: 0; }
+    20%  { opacity: 1; }
+    100% { transform: translate(20px, -100vh) scale(1.1); opacity: 0; }
+  }
+
+  @media (max-width: 600px) {
+    .text { padding: 0 1rem; }
+    .text p { line-height: 1.85; }
+    .hint { display: none; }
+    .counter { right: 1.2rem; bottom: 1.4rem; }
+    .controls { bottom: 1.4rem; gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+  <audio id="voiceover" src="voiceover.MP3" preload="auto"></audio>
+  <audio id="bgm" src="bgm.mp3" preload="auto" loop></audio>
+
+  <div class="bird-layer">
+    <div class="bird" id="bird">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 34 Q22 26 36 28 Q48 30 54 34 Q48 38 36 38 Q22 40 14 34 Z" fill="#284a64" />
+        <path d="M12 33 L4 30 L8 34 L4 38 Z" fill="#284a64" />
+        <path d="M54 34 L60 33 L54 36 Z" fill="#c98b4b" />
+        <circle cx="50" cy="32" r="1.2" fill="#fff" />
+        <path class="wing" d="M28 30 Q34 18 46 22 Q40 30 32 32 Z" fill="#1a2530" opacity="0.85" />
+      </svg>
+    </div>
+  </div>
+
+  <main class="stage" id="stage"></main>
+
+  <div class="controls">
+    <button class="nav-btn" id="prev" aria-label="Previous">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="progress" id="progress"></div>
+    <button class="nav-btn" id="next" aria-label="Next">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+
+  <div class="hint">Scroll · Arrow keys · Click</div>
+  <div class="counter" id="counter"><span class="current" id="cur">01</span> / <span id="total">09</span></div>
+
+<script>
+  const TITLE_IMG  = 'title_page.png';
+  const FINISH_IMG = 'finish%20page.png';
+
+  const stanzas = [
+    { img: '1.png', fx: 'fx-1', lines: [
+      "Little bird had a family tree",
+      "As safe and snug as she could be.",
+      "Beneath its shades, she sang her tune,",
+      "And never thought she'd have to leave."
+    ]},
+    { img: '2.png', fx: 'fx-2', lines: [
+      "But then one day, the sky turned gray,",
+      "A tempest blew her world away.",
+      "The branch that held her snapped in two,",
+      "And flung her deep into the blue."
+    ]},
+    { img: '3.png', fx: 'fx-3', lines: [
+      "She tumbled into a taller oak,",
+      "Among a strange and different folk.",
+      "She changed her voice to match their song,",
+      "And tried her hardest to belong."
+    ]},
+    { img: '4.png', fx: 'fx-4', lines: [
+      "In time she found a rhythm there,",
+      "Through autumn leaves and winter air.",
+      "But late at night, when woods were stilled,",
+      "She felt the hollow home once filled."
+    ]},
+    { img: '5.png', fx: 'fx-5', lines: [
+      "So off she flew across the sea,",
+      "To find her missing family tree.",
+      "Though home was nowhere to be found,",
+      "Each place she passed, she learnt a sound."
+    ]},
+    { img: '6.png', fx: 'fx-6', lines: [
+      "The frozen wind taught her to hold,",
+      "A steady note against the cold.",
+      "From crashing surf to forest hum,",
+      "A wider song she has become."
+    ]},
+    { img: '7.png', fx: 'fx-7', lines: [
+      "Then one fine day, another tree,",
+      "A small bird whispered, “sing for me.”",
+      "She trembled once, then let it out,",
+      "A note so true, it cleared all doubt."
+    ]},
+    { img: '8.png', fx: 'fx-8', lines: [
+      "The mountain's height, the ocean's depth,",
+      "Had shaped the voice she held inside.",
+      "Through every note, the story grew,",
+      "Into a truth she never knew."
+    ]},
+    { img: '9.png', fx: 'fx-9', lines: [
+      "She loves her journey, her family tree,",
+      "She needs neither to feel complete.",
+      "The sky is wide, the wind is clear,",
+      "So once again, she spread her wings."
+    ]}
+  ];
+
+  /* ─── per-stanza FX builders ───────────────────────────────── */
+
+  const farBirdSVG = `
+    <svg viewBox="0 0 30 14" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 9 Q7 2 14 7 Q21 2 28 9" stroke="#1a2530" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    </svg>`;
+
+  const riseBirdSVG = `
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 34 Q22 26 36 28 Q48 30 54 34 Q48 38 36 38 Q22 40 14 34 Z" fill="#1a2530"/>
+      <path d="M12 33 L4 30 L8 34 L4 38 Z" fill="#1a2530"/>
+      <path class="wing" d="M28 30 Q34 18 46 22 Q40 30 32 32 Z" fill="#0d141d"/>
+    </svg>`;
+
+  function motesFX(count = 9) {
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const x = Math.round((i / count) * 95 + 3);
+      const d = (i * 0.9).toFixed(1);
+      const dur = 9 + (i % 3) * 2;
+      out.push(`<span class="mote" style="--x:${x}%;--d:${d}s;--dur:${dur}s"></span>`);
+    }
+    return out.join('');
+  }
+
+  const builders = {
+    'fx-title'() { return motesFX(10); },
+
+    'fx-1'() { return motesFX(9); },
+
+    'fx-2'() {
+      const streaks = [12, 22, 30, 42, 55, 68, 78, 86];
+      const debris = [25, 45, 60, 75];
+      return [
+        ...streaks.map((y, i) => `<span class="streak" style="--y:${y}%;--d:${(i*0.4).toFixed(2)}s;--dur:${1.4 + (i%3)*0.4}s"></span>`),
+        ...debris.map((y, i)  => `<span class="debris" style="--y:${y}%;--d:${(i*0.7).toFixed(2)}s;--dur:${2.2 + (i%2)*0.6}s"></span>`)
+      ].join('');
+    },
+
+    'fx-3'() {
+      const cfg = [
+        {y:18, d:0,  dur:18},
+        {y:32, d:6,  dur:22},
+        {y:48, d:12, dur:20},
+        {y:62, d:3,  dur:24}
+      ];
+      return cfg.map(c => `<span class="farbird" style="--y:${c.y}%;--d:${c.d}s;--dur:${c.dur}s">${farBirdSVG}</span>`).join('');
+    },
+
+    'fx-4'() {
+      const colors = ['#c87a3b', '#a8542b', '#d99a4a', '#8c6b3a', '#b56a2f'];
+      const xs = [6, 14, 22, 32, 42, 52, 60, 70, 80, 90];
+      return xs.map((x, i) =>
+        `<span class="leaf" style="--x:${x}%;--c:${colors[i % colors.length]};--d:${(i*0.8).toFixed(2)}s;--dur:${7 + (i%3)*1.5}s"></span>`
+      ).join('');
+    },
+
+    'fx-5'() {
+      const pts = [];
+      for (let i = 0; i < 18; i++) {
+        pts.push({
+          x: Math.round(5 + Math.random() * 90),
+          y: Math.round(55 + Math.random() * 40),
+          d: (Math.random() * 3).toFixed(2),
+          dur: (1.8 + Math.random() * 1.6).toFixed(2)
+        });
+      }
+      return pts.map(p => `<span class="sparkle" style="--x:${p.x}%;--y:${p.y}%;--d:${p.d}s;--dur:${p.dur}s"></span>`).join('');
+    },
+
+    'fx-6'() {
+      const out = [];
+      for (let i = 0; i < 26; i++) {
+        out.push(`<span class="snow" style="--x:${Math.round(Math.random()*100)}%;--d:${(Math.random()*8).toFixed(2)}s;--dur:${(7 + Math.random()*6).toFixed(2)}s"></span>`);
+      }
+      return out.join('');
+    },
+
+    'fx-7'() {
+      const notes = [
+        {x:42, y:55, d:0,   c:'♪'},
+        {x:55, y:50, d:1.5, c:'♫'},
+        {x:48, y:60, d:3,   c:'♪'},
+        {x:38, y:52, d:2,   c:'♬'}
+      ];
+      return `<span class="halo"></span>` +
+        notes.map(n => `<span class="note" style="--x:${n.x}%;--y:${n.y}%;--d:${n.d}s">${n.c}</span>`).join('');
+    },
+
+    'fx-8'() {
+      const rays = [
+        {x:18, rot:6,  d:0},
+        {x:42, rot:-4, d:1.5},
+        {x:65, rot:8,  d:3},
+        {x:82, rot:-7, d:0.8}
+      ];
+      const sparks = [];
+      for (let i = 0; i < 14; i++) {
+        sparks.push({
+          x: Math.round(10 + Math.random() * 80),
+          y: Math.round(15 + Math.random() * 70),
+          d: (Math.random() * 3).toFixed(2),
+          dur: (2 + Math.random() * 1.8).toFixed(2)
+        });
+      }
+      return [
+        ...rays.map(r => `<span class="ray" style="--x:${r.x}%;--rot:${r.rot}deg;--d:${r.d}s"></span>`),
+        ...sparks.map(s => `<span class="sparkle" style="--x:${s.x}%;--y:${s.y}%;--d:${s.d}s;--dur:${s.dur}s"></span>`)
+      ].join('');
+    },
+
+    'fx-9'() { return goldenRiseFX(); },
+    'fx-finish'() { return goldenRiseFX(true); }
+  };
+
+  function goldenRiseFX(extra = false) {
+    const birds = [
+      {x:18, d:0},
+      {x:38, d:2.2},
+      {x:60, d:4.4},
+      {x:78, d:1.1}
+    ];
+    if (extra) birds.push({x:50, d:5.5});
+    const golds = [];
+    for (let i = 0; i < (extra ? 18 : 14); i++) {
+      golds.push({
+        x: Math.round(Math.random() * 100),
+        d: (Math.random() * 6).toFixed(2),
+        dur: (8 + Math.random() * 5).toFixed(2)
+      });
+    }
+    return [
+      ...birds.map(b => `<span class="rise-bird" style="--x:${b.x}%;--d:${b.d}s">${riseBirdSVG}</span>`),
+      ...golds.map(g => `<span class="gold" style="--x:${g.x}%;--d:${g.d}s;--dur:${g.dur}s"></span>`)
+    ].join('');
+  }
+
+  /* ─── DOM construction ─────────────────────────────────────── */
+
+  const stage = document.getElementById('stage');
+  const progress = document.getElementById('progress');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  const bird = document.getElementById('bird');
+  const counter = document.getElementById('counter');
+  const curEl = document.getElementById('cur');
+  const totalEl = document.getElementById('total');
+
+  totalEl.textContent = String(stanzas.length).padStart(2, '0');
+
+  // Title screen
+  const titleEl = document.createElement('article');
+  titleEl.className = 'screen screen-title';
+  titleEl.innerHTML = `
+    <div class="bg" style="background-image: url('${TITLE_IMG}')"></div>
+    <div class="bg-tint"></div>
+    <div class="fx fx-title">${builders['fx-title']()}</div>
+    <div class="text">
+      <div class="title-sub">by xiaoman</div>
+      <button class="action-btn" data-action="begin">Begin</button>
+    </div>
+  `;
+  stage.appendChild(titleEl);
+
+  // Stanzas
+  stanzas.forEach((s, i) => {
+    const article = document.createElement('article');
+    article.className = 'screen screen-stanza';
+    article.dataset.stanza = i;
+
+    const linesHTML = s.lines.map(l => `<span class="line">${l}</span>`).join('');
+    article.innerHTML = `
+      <div class="bg" style="background-image: url('${s.img}')"></div>
+      <div class="bg-tint"></div>
+      <div class="fx ${s.fx}">${(builders[s.fx] || (() => ''))()}</div>
+      <div class="text"><p>${linesHTML}</p></div>
+    `;
+    stage.appendChild(article);
+  });
+
+  // Finish screen
+  const finishEl = document.createElement('article');
+  finishEl.className = 'screen screen-finish';
+  finishEl.innerHTML = `
+    <div class="bg" style="background-image: url('${FINISH_IMG}')"></div>
+    <div class="bg-tint"></div>
+    <div class="fx fx-finish">${builders['fx-finish']()}</div>
+    <div class="text">
+      <div class="fin-mark">
+        <span class="fin-rule"></span>
+        <span class="fin-word">fin</span>
+        <span class="fin-rule"></span>
+      </div>
+      <button class="action-btn" data-action="restart">Read Again</button>
+    </div>
+  `;
+  stage.appendChild(finishEl);
+
+  // Progress dots — one per stanza only
+  stanzas.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.addEventListener('click', () => goTo(i + 1)); // +1 because index 0 = title
+    progress.appendChild(d);
+  });
+
+  /* ─── preload all backgrounds ──────────────────────────────── */
+  [TITLE_IMG, FINISH_IMG, ...stanzas.map(s => s.img)].forEach(src => {
+    const img = new Image(); img.src = src;
+  });
+
+  /* ─── navigation ──────────────────────────────────────────── */
+  // screenIndex: 0 = title, 1..9 = stanzas, 10 = finish
+  let screenIndex = 0;
+  const screens = document.querySelectorAll('.screen');
+  const dots = document.querySelectorAll('.dot');
+  const TOTAL_SCREENS = screens.length;
+
+  /* ─── background music (loop) ─────────────────────────────── */
+  const bgm = document.getElementById('bgm');
+  bgm.volume = 0.8;
+  function startBGM() {
+    if (!bgm.paused) return;
+    const p = bgm.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+  // Try to start audibly right away. Some browsers (especially on file://
+  // or sites with prior autoplay permission) allow this. If blocked, the
+  // first user interaction below unlocks playback.
+  startBGM();
+  ['click', 'keydown', 'wheel', 'touchstart'].forEach(ev =>
+    window.addEventListener(ev, startBGM, { capture: true, passive: true })
+  );
+
+  /* ─── voiceover (single file, seek per screen) ────────────── */
+  const voiceover = document.getElementById('voiceover');
+  voiceover.volume = 1.0;
+  // [start, end] in seconds — index matches screenIndex
+  // Each end is (next-cut − 0.3) so we trim the tail before the next narration.
+  const SEG = [
+    { start: 0,   end: 1.7   },      // title    (0:00 → 0:02)
+    { start: 2,   end: 13.7  },      // stanza 1 (0:02 → 0:14)
+    { start: 14,  end: 26.7  },      // stanza 2 (0:14 → 0:27)
+    { start: 27,  end: 39.7  },      // stanza 3 (0:27 → 0:40)
+    { start: 40,  end: 54.7  },      // stanza 4 (0:40 → 0:55)
+    { start: 55,  end: 69.7  },      // stanza 5 (0:55 → 1:10)
+    { start: 70,  end: 81.7  },      // stanza 6 (1:10 → 1:22)
+    { start: 82,  end: 97.7  },      // stanza 7 (1:22 → 1:38)
+    { start: 98,  end: 109.7 },      // stanza 8 (1:38 → 1:50)
+    { start: 110, end: 124.7 },      // stanza 9 (1:50 → 2:05)
+    { start: 125, end: Infinity }    // finish   (2:05 → end)
+  ];
+  let currentSeg = null;
+  let pendingAdvance = null; // screen index to auto-advance to when current segment ends
+
+  function playSegment(idx) {
+    const seg = SEG[idx];
+    if (!seg) { voiceover.pause(); currentSeg = null; return; }
+    currentSeg = seg;
+    try { voiceover.currentTime = seg.start; } catch (_) {}
+    const p = voiceover.play();
+    if (p && p.catch) p.catch(() => {}); // ignore autoplay block on first load
+  }
+
+  voiceover.addEventListener('timeupdate', () => {
+    if (currentSeg && voiceover.currentTime >= currentSeg.end) {
+      voiceover.pause();
+      currentSeg = null;
+      if (pendingAdvance != null) {
+        const idx = pendingAdvance;
+        pendingAdvance = null;
+        goTo(idx);
+      }
+    }
+  });
+
+  function isStanza(idx) { return idx >= 1 && idx <= stanzas.length; }
+  function stanzaNum(idx) { return idx; } // 1..9
+
+  function flyBird(idx) {
+    if (!isStanza(idx)) {
+      bird.classList.remove('visible');
+      return;
+    }
+    bird.classList.add('visible');
+    const s = idx - 1;                    // 0..8
+    const t = s / (stanzas.length - 1);   // 0..1
+    const xPct = 8 + t * 84;
+    const yPct = 22 + Math.sin(t * Math.PI * 1.3) * 14 - t * 4;
+    const tilt = Math.sin(t * Math.PI * 1.3) * -8;
+    bird.style.left = xPct + '%';
+    bird.style.top  = yPct + '%';
+    bird.style.transform = `rotate(${tilt}deg)`;
+  }
+
+  function render() {
+    screens.forEach((el, i) => el.classList.toggle('active', i === screenIndex));
+
+    // Progress dots: active = current stanza, done = past stanzas
+    dots.forEach((d, i) => {
+      d.classList.toggle('active', screenIndex === i + 1);
+      d.classList.toggle('done', screenIndex > i + 1);
+    });
+
+    // Counter
+    if (isStanza(screenIndex)) {
+      counter.classList.remove('hidden');
+      curEl.textContent = String(stanzaNum(screenIndex)).padStart(2, '0');
+    } else {
+      counter.classList.add('hidden');
+    }
+
+    prevBtn.disabled = screenIndex === 0;
+    nextBtn.disabled = screenIndex === TOTAL_SCREENS - 1;
+
+    flyBird(screenIndex);
+    playSegment(screenIndex);
+  }
+
+  function goTo(i) {
+    pendingAdvance = null; // any explicit nav cancels a queued auto-advance
+    screenIndex = Math.max(0, Math.min(TOTAL_SCREENS - 1, i));
+    render();
+  }
+  function next() { goTo(screenIndex + 1); }
+  function prev() { goTo(screenIndex - 1); }
+
+  nextBtn.addEventListener('click', next);
+  prevBtn.addEventListener('click', prev);
+
+  // Action buttons (begin / restart)
+  stage.addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (btn) {
+      e.stopPropagation();
+      if (btn.dataset.action === 'begin') {
+        // Replay title narration (audio is now unlocked by this click),
+        // then auto-advance to stanza 1 when it ends.
+        pendingAdvance = 1;
+        playSegment(0);
+      }
+      else if (btn.dataset.action === 'restart') goTo(0);
+      return;
+    }
+    if (e.target.closest('.nav-btn') || e.target.closest('.dot')) return;
+    next();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { goTo(0); }
+    else if (e.key === 'End')  { goTo(TOTAL_SCREENS - 1); }
+  });
+
+  let wheelLock = false;
+  window.addEventListener('wheel', e => {
+    if (wheelLock) return;
+    if (Math.abs(e.deltaY) < 12) return;
+    wheelLock = true;
+    if (e.deltaY > 0) next(); else prev();
+    setTimeout(() => { wheelLock = false; }, 900);
+  }, { passive: true });
+
+  let touchStartY = null;
+  window.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+  window.addEventListener('touchend', e => {
+    if (touchStartY == null) return;
+    const dy = touchStartY - e.changedTouches[0].clientY;
+    if (Math.abs(dy) > 40) { dy > 0 ? next() : prev(); }
+    touchStartY = null;
+  });
+
+  render();
+</script>
+</body>
+</html>
