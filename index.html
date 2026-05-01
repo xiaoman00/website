@@ -500,9 +500,68 @@
     .counter { right: 1.2rem; bottom: 1.4rem; }
     .controls { bottom: 1.4rem; gap: 1rem; }
   }
+
+  /* ─── loading screen ────────────────────────────────────────── */
+  #loading-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: linear-gradient(180deg, #f4faff 0%, #e3f0fa 55%, #cfe4f3 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    transition: opacity 1.4s ease;
+  }
+  #loading-screen.fade-out { opacity: 0; pointer-events: none; }
+  .ld-bird {
+    width: 56px; height: 56px;
+    animation: ld-float 2.2s ease-in-out infinite;
+    filter: drop-shadow(0 4px 12px rgba(40,74,100,0.18));
+  }
+  .ld-bird .wing { transform-origin: 32px 30px; animation: flap 0.55s ease-in-out infinite; }
+  @keyframes ld-float {
+    0%,100% { opacity: 0.45; transform: translateY(0)   scale(0.92); }
+    50%     { opacity: 1;    transform: translateY(-8px) scale(1.06); }
+  }
+  .ld-track {
+    width: 160px; height: 1px;
+    background: rgba(40,74,100,0.18);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .ld-fill {
+    height: 100%; width: 0%;
+    background: var(--accent);
+    border-radius: 1px;
+    transition: width 0.35s ease;
+  }
+  .ld-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.66rem;
+    letter-spacing: 0.38em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    opacity: 0.6;
+  }
 </style>
 </head>
 <body>
+
+  <div id="loading-screen">
+    <div class="ld-bird">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 34 Q22 26 36 28 Q48 30 54 34 Q48 38 36 38 Q22 40 14 34 Z" fill="#284a64"/>
+        <path d="M12 33 L4 30 L8 34 L4 38 Z" fill="#284a64"/>
+        <path d="M54 34 L60 33 L54 36 Z" fill="#c98b4b"/>
+        <circle cx="50" cy="32" r="1.2" fill="#fff"/>
+        <path class="wing" d="M28 30 Q34 18 46 22 Q40 30 32 32 Z" fill="#1a2530" opacity="0.85"/>
+      </svg>
+    </div>
+    <div class="ld-track"><div class="ld-fill" id="ld-fill"></div></div>
+    <div class="ld-label">Loading</div>
+  </div>
 
   <audio id="voiceover" src="voiceover.MP3" preload="auto"></audio>
   <audio id="bgm" src="bgm.mp3" preload="auto" loop></audio>
@@ -801,10 +860,50 @@
     progress.appendChild(d);
   });
 
-  /* ─── preload all backgrounds ──────────────────────────────── */
-  [TITLE_IMG, FINISH_IMG, ...stanzas.map(s => s.img)].forEach(src => {
-    const img = new Image(); img.src = src;
+  /* ─── asset loading ────────────────────────────────────────── */
+  const ldFill   = document.getElementById('ld-fill');
+  const ldScreen = document.getElementById('loading-screen');
+
+  const imageAssets = [TITLE_IMG, FINISH_IMG, ...stanzas.map(s => s.img)];
+  const audioAssets = [
+    document.getElementById('voiceover'),
+    document.getElementById('bgm')
+  ];
+  const totalAssets = imageAssets.length + audioAssets.length;
+  let loadedCount = 0;
+  let ready = false;
+
+  function onAssetReady() {
+    loadedCount = Math.min(loadedCount + 1, totalAssets);
+    ldFill.style.width = Math.round((loadedCount / totalAssets) * 100) + '%';
+    if (loadedCount >= totalAssets && !ready) startExperience();
+  }
+
+  function startExperience() {
+    ready = true;
+    ldScreen.classList.add('fade-out');
+    ldScreen.addEventListener('transitionend', () => ldScreen.remove(), { once: true });
+    render();
+  }
+
+  imageAssets.forEach(src => {
+    const img = new Image();
+    img.onload = img.onerror = onAssetReady;
+    img.src = src;
   });
+
+  audioAssets.forEach(audio => {
+    if (audio.readyState >= 4) {
+      onAssetReady();
+    } else {
+      const done = () => onAssetReady();
+      audio.addEventListener('canplaythrough', done, { once: true });
+      audio.addEventListener('error',          done, { once: true });
+    }
+  });
+
+  // Fallback: force-start after 12 s in case an asset never resolves
+  setTimeout(() => { if (!ready) startExperience(); }, 12000);
 
   /* ─── navigation ──────────────────────────────────────────── */
   // screenIndex: 0 = title, 1..9 = stanzas, 10 = finish
@@ -915,7 +1014,8 @@
   }
 
   function goTo(i) {
-    pendingAdvance = null; // any explicit nav cancels a queued auto-advance
+    if (!ready) return;
+    pendingAdvance = null;
     screenIndex = Math.max(0, Math.min(TOTAL_SCREENS - 1, i));
     render();
   }
@@ -968,7 +1068,6 @@
     touchStartY = null;
   });
 
-  render();
 </script>
 </body>
 </html>
