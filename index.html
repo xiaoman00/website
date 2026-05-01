@@ -869,7 +869,10 @@
     document.getElementById('voiceover'),
     document.getElementById('bgm')
   ];
-  const totalAssets = imageAssets.length + audioAssets.length;
+  // Web fonts are a separate asset class — without waiting for them the title
+  // page paints with fallback fonts and reflows once the real fonts arrive.
+  const fontsReady = (document.fonts && document.fonts.ready) || Promise.resolve();
+  const totalAssets = imageAssets.length + audioAssets.length + 1; // +1 for fonts
   let loadedCount = 0;
   let ready = false;
 
@@ -888,7 +891,14 @@
 
   imageAssets.forEach(src => {
     const img = new Image();
-    img.onload = img.onerror = onAssetReady;
+    const finish = () => onAssetReady();
+    // decode() guarantees the bitmap is ready for paint, not just downloaded —
+    // prevents a hitch when the CSS background first renders the image.
+    img.onload = () => {
+      if (img.decode) img.decode().then(finish, finish);
+      else finish();
+    };
+    img.onerror = finish;
     img.src = src;
   });
 
@@ -899,11 +909,16 @@
       const done = () => onAssetReady();
       audio.addEventListener('canplaythrough', done, { once: true });
       audio.addEventListener('error',          done, { once: true });
+      // Some browsers won't actually start downloading until load() is called
+      // even with preload="auto", especially after late DOM mutations.
+      try { audio.load(); } catch (_) {}
     }
   });
 
-  // Fallback: force-start after 12 s in case an asset never resolves
-  setTimeout(() => { if (!ready) startExperience(); }, 12000);
+  fontsReady.then(() => onAssetReady(), () => onAssetReady());
+
+  // Fallback: force-start after 15 s in case an asset never resolves
+  setTimeout(() => { if (!ready) startExperience(); }, 15000);
 
   /* ─── navigation ──────────────────────────────────────────── */
   // screenIndex: 0 = title, 1..9 = stanzas, 10 = finish
