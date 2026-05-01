@@ -149,15 +149,42 @@
   .title-sub {
     margin-top: 0.85rem;
     font-family: 'Inter', sans-serif;
-    font-size: 0.74rem;
-    letter-spacing: 0.36em;
-    color: var(--ink-soft);
+    font-size: 0.9rem;
+    letter-spacing: 0.34em;
+    color: #fff;
+    font-weight: 400;
     text-transform: uppercase;
     opacity: 0;
-    transition: opacity 1.4s ease 1.0s;
-    text-shadow: 0 0 12px rgba(255,255,255,0.95);
+    text-shadow:
+      0 1px 4px rgba(0,0,0,0.75),
+      0 2px 12px rgba(0,0,0,0.65),
+      0 4px 28px rgba(0,0,0,0.55);
   }
-  .screen-title.active .title-sub { opacity: 1; }
+  .screen-title.active .title-sub {
+    animation:
+      title-sub-in 1.8s ease 1.0s forwards,
+      title-sub-shimmer 5s ease-in-out 2.8s infinite;
+  }
+  @keyframes title-sub-in {
+    0%   { opacity: 0; letter-spacing: 0.18em; transform: translateY(6px); }
+    100% { opacity: 1; letter-spacing: 0.34em; transform: translateY(0); }
+  }
+  @keyframes title-sub-shimmer {
+    0%, 100% {
+      text-shadow:
+        0 1px 4px rgba(0,0,0,0.75),
+        0 2px 12px rgba(0,0,0,0.65),
+        0 4px 28px rgba(0,0,0,0.55),
+        0 0 14px rgba(255,240,200,0);
+    }
+    50% {
+      text-shadow:
+        0 1px 4px rgba(0,0,0,0.75),
+        0 2px 12px rgba(0,0,0,0.65),
+        0 4px 28px rgba(0,0,0,0.55),
+        0 0 22px rgba(255,240,200,0.55);
+    }
+  }
 
   /* ─── finish screen ─────────────────────── */
   .fin-mark {
